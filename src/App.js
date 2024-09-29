@@ -6,6 +6,7 @@ import {Server} from "socket.io";
 import * as http from "http";
 import Queue from "queue";
 import JobList from "./JobList.js";
+import {logger} from "./Logger.js";
 
 export default class App {
     #PORT;
@@ -37,10 +38,10 @@ export default class App {
             autostart: true
         });
 
-        this.#queue.addEventListener('start', job => console.log('Job started', job))
-        this.#queue.addEventListener('success', event => console.log('Job success', event.job))
-        this.#queue.addEventListener('error', event => console.log('Job error', event.job, event.err))
-        this.#queue.addEventListener('timeout', event => console.log('Job timeout', event.job))
+        this.#queue.addEventListener('start', job => logger.info('Job started', job))
+        this.#queue.addEventListener('success', event => logger.info('Job success', event.job))
+        this.#queue.addEventListener('error', event => logger.info('Job error', event.job, event.err))
+        this.#queue.addEventListener('timeout', event => logger.info('Job timeout', event.job))
 
         this.#express = express();
         this.#server = http.createServer(this.#express)
@@ -59,22 +60,40 @@ export default class App {
         this.#express.post('/webhook', this.#onWebhook.bind(this))
 
         this.#server.listen(this.#PORT, async () => {
-            console.log(`Application running on port ${this.#PORT}`);
+            logger.info(`Application running on port ${this.#PORT}`);
         });
 
         this.#io.on('connection', socket => {
-            console.log('connected');
+            logger.info('connected');
             socket.emit('jobs', Array.from(this.#jobList.getJobs().values()));
         })
     }
 
+    #stringify(obj) {
+        let cache = [];
+        let str = JSON.stringify(obj, function (key, value) {
+            if (typeof value === "object" && value !== null) {
+                if (cache.indexOf(value) !== -1) {
+                    // Circular reference found, discard key
+                    return;
+                }
+                // Store value in our collection
+                cache.push(value);
+            }
+            return value;
+        });
+        cache = null; // reset the cache
+        return str;
+    }
+
     #onWebhook(req, res) {
         try {
-            console.info("Webhook triggered");
+            logger.info("Webhook triggered");
+            // logger.info(this.#stringify(req))
             this.#handleWebhook(req, res);
             res.send("Queued");
         } catch (e) {
-            console.error(e)
+            logger.error(e)
             res.status(400).send(e.message);
         }
     }
@@ -123,11 +142,17 @@ export default class App {
         });
 
         this.#queue.push(async () => {
+            logger.info("Pushed to queue")
             this.#jobList.setJobInProgress(job.id);
 
             const categories = await this.#firefly.getCategories();
+            logger.info("Categories fetched" + categories.values())
 
-            const {category, prompt, response} = await this.#openAi.classify(Array.from(categories.keys()), destinationName, description)
+            const {
+                category,
+                prompt,
+                response
+            } = await this.#openAi.classify(Array.from(categories.keys()), destinationName, description)
 
             const newData = Object.assign({}, job.data);
             newData.category = category;

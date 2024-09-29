@@ -1,4 +1,5 @@
 import {getConfigVariable} from "./util.js";
+import {logger} from "./Logger.js";
 
 export default class FireflyService {
     #BASE_URL;
@@ -14,17 +15,26 @@ export default class FireflyService {
     }
 
     async getCategories() {
+        logger.info("Fetching categories")
         const response = await fetch(`${this.#BASE_URL}/api/v1/categories`, {
             headers: {
                 Authorization: `Bearer ${this.#PERSONAL_TOKEN}`,
             }
         });
-
+        logger.info("Fetched categories")
         if (!response.ok) {
-            throw new FireflyException(response.status, response, await response.text())
+            // Log the error status and message
+            logger.error(`Error: ${response.status} - ${response.statusText}`);
+            // Optionally, you can log the response body as well
+            const responseBody = await response.text();
+            logger.error(`Response Body: ${responseBody}`);
+            // Throw an error or handle it as needed
+            throw new Error(`Failed to fetch categories. Status: ${response.status}`);
         }
 
+        // Process the successful response
         const data = await response.json();
+        logger.log('Categories:', data);
 
         const categories = new Map();
         data.data.forEach(category => {
@@ -71,7 +81,7 @@ export default class FireflyService {
         }
 
         await response.json();
-        console.info("Transaction updated")
+        logger.info("Transaction updated")
     }
 }
 

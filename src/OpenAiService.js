@@ -1,9 +1,10 @@
 import {Configuration, OpenAIApi} from "openai";
 import {getConfigVariable} from "./util.js";
+import {logger} from "./Logger.js";
 
 export default class OpenAiService {
     #openAi;
-    #model = "text-davinci-003";
+    #model = "gpt-3.5-turbo-instruct";
 
     constructor() {
         const apiKey = getConfigVariable("OPENAI_API_KEY")
@@ -29,7 +30,7 @@ export default class OpenAiService {
             guess = guess.trim();
 
             if (categories.indexOf(guess) === -1) {
-                console.warn(`OpenAI could not classify the transaction. 
+                logger.warn(`OpenAI could not classify the transaction. 
                 Prompt: ${prompt}
                 OpenAIs guess: ${guess}`)
                 return null;
@@ -43,11 +44,11 @@ export default class OpenAiService {
 
         } catch (error) {
             if (error.response) {
-                console.error(error.response.status);
-                console.error(error.response.data);
+                logger.error(error.response.status);
+                logger.error(error.response.data);
                 throw new OpenAiException(error.status, error.response, error.response.data);
             } else {
-                console.error(error.message);
+                logger.error(error.message);
                 throw new OpenAiException(null, null, error.message);
             }
         }
